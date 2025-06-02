@@ -82,7 +82,7 @@ print(f"Accuracy on test set: {100 * correct / total:.2f}%")
 
 
 # 5) PRZYGOTOWANIE DO WIELOKROTNYCH ATACKÓW
-NUM_EXAMPLES = 3
+NUM_EXAMPLES = 5
 
 # 5.1) Owiń model w Foolboxa
 fmodel = fb.PyTorchModel(model, bounds=(0, 1))
@@ -155,11 +155,12 @@ adversarials = []
 # 5.7) Dla każdego oryginału uruchom BoundaryAttack i zapisz wynik:
 print(f"--- Uruchamianie BoundaryAttack dla {NUM_EXAMPLES} przykładów ---")
 
-start_time = time.time()
 
 for idx in range(NUM_EXAMPLES):
-    print(f"  Atak {idx+1}/{NUM_EXAMPLES} (etykieta oryginału = {orig_labels[idx].item()}) ...")
+    print(f"--- Atak {idx+1}/{NUM_EXAMPLES} (etykieta oryginału = {orig_labels[idx].item()}) ---")
     attack = fb.attacks.BoundaryAttack()
+
+    start_time = time.time()
 
     adv_ex = attack.run(
         fmodel,
@@ -167,6 +168,9 @@ for idx in range(NUM_EXAMPLES):
         criteria_fb[idx],
         starting_points=starts[idx]
     )
+
+    end_time = time.time()
+
     adversarials.append(adv_ex)
 
     # Oblicz SSIM
@@ -174,12 +178,12 @@ for idx in range(NUM_EXAMPLES):
     adv_np  = adv_ex.squeeze().detach().cpu().numpy()
     ssim_val = ssim(orig_np, adv_np, data_range=1.0)  # Zakładamy zakres 0–1
 
-    print(f"    → SSIM (oryginał vs adversarial): {ssim_val:.4f}")
+    print(f"SSIM (oryginał vs adversarial): {ssim_val:.4f}")
+    print(f"Czas trwania ataku: {end_time - start_time:.2f} sekundy")
 
-end_time = time.time()
 
-print(f"--- Gotowe! ---")
-print(f"Całkowity czas generowania perturbacji dla {NUM_EXAMPLES} obrazów: {end_time - start_time:.2f} sekundy")
+
+print(f"Gotowe")
 
 
 # 6) WIZUALIZACJA WIĘKSZEJ LICZBY PRZYKŁADÓW
