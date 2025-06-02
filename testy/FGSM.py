@@ -6,6 +6,10 @@ import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import random
 from PIL import Image
+import time
+from skimage.metrics import structural_similarity as ssim
+import numpy as np
+
 
 # Konfiguracja urządzenia
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -82,7 +86,78 @@ def fgsm_attack(image, epsilon, data_grad):
     return perturbed_image
 
 # Funkcja ataku na cały testloader
-def attack(testloader, epsilon=0.1, show_examples=False):
+#def attack(testloader, epsilon=0.1, show_examples=False):
+    correct = 0
+    total = 0
+    examples = []
+    ssim_scores = []
+    model.eval()
+
+    start_time = time.time()
+
+    for images, labels in testloader:
+        images, labels = images.to(device), labels.to(device)
+        images.requires_grad = True
+
+        outputs = model(images)
+        init_preds = outputs.argmax(1)
+
+        loss = criterion(outputs, labels)
+        model.zero_grad()
+        loss.backward()
+
+        data_grad = images.grad.data
+        perturbed_data = fgsm_attack(images, epsilon, data_grad)
+
+        with torch.no_grad():
+            output = model(perturbed_data)
+            final_preds = output.argmax(1)
+
+        correct += (final_preds == labels).sum().item()
+        total += labels.size(0)
+
+        # Liczenie SSIM (dla pierwszych 100 obrazów)
+        for i in range(min(100 - len(ssim_scores), images.size(0))):
+            orig = images[i].squeeze().detach().cpu().numpy()
+            pert = perturbed_data[i].squeeze().detach().cpu().numpy()
+            s = ssim(orig, pert, data_range=1.0)
+            ssim_scores.append(s)
+
+        # Przykłady do wizualizacji
+        if show_examples and len(examples) < 5:
+            for i in range(min(5 - len(examples), images.size(0))):
+                orig = images[i].squeeze().detach().cpu().numpy()
+                pert = perturbed_data[i].squeeze().detach().cpu().numpy()
+                examples.append((orig, init_preds[i].item(), pert, final_preds[i].item(), labels[i].item()))
+
+        if len(ssim_scores) >= 100:
+            break  # Wystarczy 100 SSIM
+
+    end_time = time.time()
+    duration = end_time - start_time
+    accuracy = 100. * correct / total
+    mean_ssim = np.mean(ssim_scores)
+
+    print(f"Epsilon: {epsilon:.2f} - Accuracy after FGSM attack: {accuracy:.2f}%")
+    print(f"  ⏱ Czas działania: {duration:.2f} s")
+    print(f"  🔎 Średni SSIM (dla 100 próbek): {mean_ssim:.4f}")
+
+    # Wizualizacja
+    if show_examples:
+        plt.figure(figsize=(10, 4))
+        for idx, (orig, init_pred, pert, final_pred, label) in enumerate(examples):
+            plt.subplot(2, 5, idx + 1)
+            plt.imshow(orig, cmap='gray')
+            plt.title(f'P: {init_pred}')
+            plt.axis('off')
+
+            plt.subplot(2, 5, idx + 6)
+            plt.imshow(pert, cmap='gray')
+            plt.title(f'P: {final_pred}')
+            plt.axis('off')
+        plt.suptitle(f"Przewidywania przed (góra) i po (dół) ataku FGSM (ε={epsilon})")
+        plt.tight_layout()
+        plt.show()
     correct = 0
     total = 0
     examples = []
@@ -117,6 +192,77 @@ def attack(testloader, epsilon=0.1, show_examples=False):
 
     accuracy = 100. * correct / total
     print(f"Epsilon: {epsilon:.2f} - Accuracy after FGSM attack: {accuracy:.2f}%")
+
+    if show_examples:
+        plt.figure(figsize=(10, 4))
+        for idx, (orig, init_pred, pert, final_pred, label) in enumerate(examples):
+            plt.subplot(2, 5, idx + 1)
+            plt.imshow(orig, cmap='gray')
+            plt.title(f'P: {init_pred}')
+            plt.axis('off')
+
+            plt.subplot(2, 5, idx + 6)
+            plt.imshow(pert, cmap='gray')
+            plt.title(f'P: {final_pred}')
+            plt.axis('off')
+        plt.suptitle(f"Przewidywania przed (góra) i po (dół) ataku FGSM (ε={epsilon})")
+        plt.tight_layout()
+        plt.show()
+# Funkcja ataku na cały testloader
+def attack(testloader, epsilon=0.1, show_examples=False):
+    correct = 0
+    total = 0
+    examples = []
+    ssim_scores = []
+    model.eval()
+
+    start_time = time.time()
+
+    for images, labels in testloader:
+        images, labels = images.to(device), labels.to(device)
+        images.requires_grad = True
+
+        outputs = model(images)
+        init_preds = outputs.argmax(1)
+
+        loss = criterion(outputs, labels)
+        model.zero_grad()
+        loss.backward()
+
+        data_grad = images.grad.data
+        perturbed_data = fgsm_attack(images, epsilon, data_grad)
+
+        with torch.no_grad():
+            output = model(perturbed_data)
+            final_preds = output.argmax(1)
+
+        correct += (final_preds == labels).sum().item()
+        total += labels.size(0)
+
+        # Liczenie SSIM (dla pierwszych 100 obrazów)
+        for i in range(min(100 - len(ssim_scores), images.size(0))):
+            orig = images[i].squeeze().detach().cpu().numpy()
+            pert = perturbed_data[i].squeeze().detach().cpu().numpy()
+            s = ssim(orig, pert, data_range=1.0)
+            ssim_scores.append(s)
+
+        # Przykłady do wizualizacji
+        if show_examples and len(examples) < 5:
+            for i in range(min(5 - len(examples), images.size(0))):
+                orig = images[i].squeeze().detach().cpu().numpy()
+                pert = perturbed_data[i].squeeze().detach().cpu().numpy()
+                examples.append((orig, init_preds[i].item(), pert, final_preds[i].item(), labels[i].item()))
+
+        if len(ssim_scores) >= 100:
+            break  # Wystarczy 100 SSIM
+
+    end_time = time.time()
+    accuracy = 100. * correct / total
+    mean_ssim = np.mean(ssim_scores)
+
+    print(f"Epsilon: {epsilon:.2f} - Accuracy after FGSM attack: {accuracy:.2f}%")
+    print(f"  ⏱ Czas działania: {end_time - start_time:.2f} s")
+    print(f"  🔎 Średni SSIM (dla 100 próbek): {mean_ssim:.4f}")
 
     if show_examples:
         plt.figure(figsize=(10, 4))
