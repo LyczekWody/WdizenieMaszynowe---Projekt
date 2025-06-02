@@ -202,6 +202,34 @@ results = []
 
 print("\n>> Evaluating model under PGD attack with different epsilons:")
 
+def visualize_epsilon_comparison(images, adv_images, labels, epsilon, model, num_images=5):
+    images_np = images[:num_images].cpu().numpy()
+    adv_images_np = adv_images[:num_images].detach().cpu().numpy()
+    labels_np = labels[:num_images].cpu().numpy()
+
+    fig, axes = plt.subplots(2, num_images, figsize=(2 * num_images, 4))
+    fig.suptitle(f"Clean vs Adversarial Images (ε = {epsilon})", fontsize=16)
+
+    for i in range(num_images):
+        # Clean image
+        axes[0, i].imshow(images_np[i][0], cmap='gray')
+        axes[0, i].set_title(f"Label: {labels_np[i]}")
+        axes[0, i].axis('off')
+
+        # Adversarial image
+        axes[1, i].imshow(adv_images_np[i][0], cmap='gray')
+        with torch.no_grad():
+            pred = model(adv_images[i].unsqueeze(0)).argmax().item()
+        axes[1, i].set_title(f"Adv Pred: {pred}")
+        axes[1, i].axis('off')
+
+    axes[0, 0].set_ylabel("Clean", fontsize=12)
+    axes[1, 0].set_ylabel("Adversarial", fontsize=12)
+
+    plt.tight_layout()
+    plt.show()
+
+
 for eps in epsilons:
     print(f"\n=== Epsilon: {eps} ===")
     attack = PGD(model, eps=eps, alpha=2/255, steps=40, random_start=True)
@@ -217,6 +245,7 @@ for eps in epsilons:
 
     start_time = time.time()
     adv_images = attack(images, labels)
+    visualize_epsilon_comparison(images, adv_images, labels, epsilon=eps, model=model)
     end_time = time.time()
 
     for i in range(images.size(0)):
