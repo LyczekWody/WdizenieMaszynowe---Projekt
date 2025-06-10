@@ -95,7 +95,6 @@ def pgd_attack(model, images, labels, epsilon, alpha=0.01, iters=20):
     return adv_images
 
 # Funkcja przeprowadzająca atak i oceniająca skuteczność modelu ofiary
-# Funkcja przeprowadzająca atak i oceniająca skuteczność modelu ofiary
 from skimage.metrics import structural_similarity as ssim
 
 def attack(loader, model_attacker, model_victim, epsilon, show_examples=False):
